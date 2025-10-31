@@ -83,33 +83,37 @@ fn run() -> Result<(), Box<dyn Error>> {
         None
     };
 
-    let metadata = fs::metadata(&cli.source).map_err(|err| {
-        format!(
-            "failed to read source {}: {err}",
-            cli.source.to_string_lossy()
-        )
-    })?;
+    let mut source = cli.source.clone();
+    if !source.exists() && source == PathBuf::from("codex/sessions") {
+        let fallback = PathBuf::from("../sessions");
+        if fallback.exists() {
+            source = fallback;
+        }
+    }
+
+    let metadata = fs::metadata(&source)
+        .map_err(|err| format!("failed to read source {}: {err}", source.to_string_lossy()))?;
 
     let start = Instant::now();
 
     if metadata.is_file() {
-        process_rollout_file(&cli.source, &storage, embedder.as_ref())?;
+        process_rollout_file(&source, &storage, embedder.as_ref(), None)?;
         println!(
             "Imported rollout {} in {:.2?}",
-            cli.source.display(),
+            source.display(),
             start.elapsed()
         );
     } else if metadata.is_dir() {
-        let count = process_rollout_dir(&cli.source, &storage, embedder.as_ref())?;
+        let count = process_rollout_dir(&source, &storage, embedder.as_ref())?;
         println!(
             "Imported {count} rollout(s) from {} in {:.2?}",
-            cli.source.display(),
+            source.display(),
             start.elapsed()
         );
     } else {
         return Err(format!(
             "source {} is neither a file nor a directory",
-            cli.source.display()
+            source.display()
         )
         .into());
     }

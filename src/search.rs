@@ -202,7 +202,7 @@ fn ensure_valid_meta_key(key: &str) -> Result<(), SearchError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::storage::{RolloutFingerprint, Storage};
+    use crate::storage::{ConversationStats, RolloutFingerprint, Storage};
     use crate::types::{ConversationRecord, TurnRecord, TurnResult, TurnTelemetry};
     use serde_json::json;
 
@@ -235,15 +235,35 @@ mod tests {
 
         let mut record_alpha = ConversationRecord::default();
         record_alpha.session_meta = Some(json!({"id":"alpha","project":"alpha"}));
+        let mut stats_alpha = ConversationStats::default();
+        stats_alpha.search_blob = "alpha result".to_string();
+        stats_alpha.turn_count = 1;
+        stats_alpha.cwd = Some("/tmp/alpha".to_string());
         let alpha_id = storage
-            .upsert_conversation("alpha.jsonl", &record_alpha, &RolloutFingerprint::default())
+            .upsert_conversation(
+                "alpha.jsonl",
+                &record_alpha,
+                &RolloutFingerprint::default(),
+                &stats_alpha,
+                None,
+            )
             .unwrap();
         insert_turn_with_embedding(&storage, &alpha_id, "alpha result", &[1.0, 0.0]);
 
         let mut record_beta = ConversationRecord::default();
         record_beta.session_meta = Some(json!({"id":"beta","project":"beta"}));
+        let mut stats_beta = ConversationStats::default();
+        stats_beta.search_blob = "beta result".to_string();
+        stats_beta.turn_count = 1;
+        stats_beta.cwd = Some("/tmp/beta".to_string());
         let beta_id = storage
-            .upsert_conversation("beta.jsonl", &record_beta, &RolloutFingerprint::default())
+            .upsert_conversation(
+                "beta.jsonl",
+                &record_beta,
+                &RolloutFingerprint::default(),
+                &stats_beta,
+                None,
+            )
             .unwrap();
         insert_turn_with_embedding(&storage, &beta_id, "beta result", &[0.0, 1.0]);
 

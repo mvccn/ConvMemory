@@ -2,14 +2,30 @@
 
 ## The problem
 
-Agentic coding sessions with Codex, Cursor, Claude Code, and similar tools generate a large amount of data, such data includes successful runs, code scan results and critical analysis, key ideas etc and they are very valuable for future continuous development. In the past, Teams often rely on manual “add memory” techniques to add these to memory (such as AGENTS.md, CLAUDE.md etc). Recall of such data is also often manual, rules based soltuions in cursor and claude are not ideal. We need to a better way to automatically accumulate the skills and knowledge from each coding run. ConvMemory is the attempt to achieve this, so your agent will be smarter from each run.
+Agentic coding sessions with Codex, Cursor, Claude Code, and similar tools generate a huge trail of artefacts: successful runs, code scan results, root-cause analyses, half-finished explorations, and the heuristics that made a solution work. Today most systems stash these insights manually in “add memory” files (AGENTS.md, CLAUDE.md, etc.), then trawl through raw rollouts or notebooks to rediscover them. Manual recall is tedious, inconsistent, and too expensive during an active incident. We need a systematic way to accumulate the skills and knowledge from every coding run so the next run starts smarter. ConvMemory is that system.
 
 ## ConvMemory
 
-ConvMemory build a set of adaptor(currently codex rollouts, more is coming!), we then index and vectorize them and save to a store; The design goal is to make import and query as fast as possible, we leverage rust, use native code rust code to call gguf models, then they are saved to sqllite.
+ConvMemory builds adapters (starting with Codex rollouts—more agent formats are planned), normalises every turn, vectorises the summaries, and persists everything to SQLite. The design goal is maximum import and query throughput on local hardware: Rust orchestrates the pipeline, GGUF models provide embeddings, and the resulting store stays small and portable.
 
-- no external service is required
-- convmemory is fast and compact!
+- No external service is required.
+- ConvMemory is fast and compact.
+
+| Scenario                                     | Raw rollouts (`~/.codex/sessions`)                       | ConvMemory                                                                  |
+| -------------------------------------------- | -------------------------------------------------------- | --------------------------------------------------------------------------- |
+| Vector similarity search                     | N/A                                                      | ~31 µs per query (with model load, 1-2s for model warm-up)                  |
+| Text search across 1,617 rollouts            | ~1.32 s to traverse and parse JSONL with a Python script | ~0.77 s for a `SELECT … LIKE` over 45 k indexed turns                       |
+| Full import (1,617 real rollouts)            | N/A                                                      | ~10ms/rollout                                                               |
+| Incremental update after one rollout changes | Re-scan entire tree (~16.6 s)                            | ~7.3 ms via `update_rollout_dir` (Criterion, 1 s warm-up / 2 s measurement) |
+
+_Benchmarks collected on the same Mac Pro used for Codex development; raw figures come from direct filesystem traversal scripts while ConvMemory timings use the included Criterion suite or SQLite queries._
+
+It provides:
+
+- A parser that normalises Codex `rollout-*.jsonl` sessions into per-turn records (user inputs, assistant output, tools used, telemetry, token counts).
+- A storage layer backed by SQLite for conversation metadata, turn transcripts, telemetry, and optional vector embeddings.
+- Optional on-device embeddings (via `llama_cpp` + GGUF models) so downstream workflows can perform semantic search.
+- A CLI importer (`conv-memory-import`) that can ingest individual files or whole directories of rollouts in batch.
 
 | Scenario                                     | Raw rollouts (`~/.codex/sessions`)                       | ConvMemory                                                                  |
 | -------------------------------------------- | -------------------------------------------------------- | --------------------------------------------------------------------------- |
@@ -73,7 +89,7 @@ Ingest the default Codex session directory (relative to the repository root) int
 
 ```bash
 cargo run --bin conv-memory-import -- \
-  --source ../codex/sessions \
+  ../sessions \
   --database conv-memory.sqlite
 ```
 
@@ -81,7 +97,7 @@ If you keep rollouts under `~/.codex/sessions`, point the importer there instead
 
 ```bash
 cargo run --bin conv-memory-import -- \
-  --source ~/.codex/sessions \
+  ~/.codex/sessions \
   --database conv-memory.sqlite
 ```
 
@@ -89,7 +105,7 @@ Include embeddings by providing the GGUF path and any runtime tuning you need:
 
 ```bash
 cargo run --features embedding-runtime --bin conv-memory-import -- \
-  --source ~/.codex/sessions \
+  ~/.codex/sessions \
   --database conv-memory.sqlite \
   --embed-model models/nomic-embed-text-v1.5.Q4_K_M.gguf \
   --embed-gpu-layers 1 \

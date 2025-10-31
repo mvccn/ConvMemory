@@ -2,7 +2,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use conv_memory::{
-    process_rollout_dir, search_with_vector, update_rollout_dir, SearchParams, Storage,
+    process_rollout_dir, search_with_vector, update_rollout_dir, ConversationStats, SearchParams,
+    Storage,
 };
 use criterion::{black_box, criterion_group, criterion_main, BatchSize, Criterion};
 use rand::{rngs::StdRng, Rng, SeedableRng};
@@ -180,8 +181,19 @@ fn seed_search_data(storage: &Storage, conversations: usize, turns_per_conversat
             size_bytes: Some(256),
             sha256: Some(format!("{:032x}", idx)),
         };
+        let mut stats = ConversationStats::default();
+        stats.turn_count = turns_per_conversation as i64;
+        stats.questions = vec!["Benchmark".to_string()];
+        stats.search_blob = format!("benchmark conv-{idx:04}");
+        stats.cwd = Some(format!("/tmp/bench/{idx:04}"));
         let conversation_id = storage
-            .upsert_conversation(format!("bench-conv-{idx:04}.jsonl"), &record, &fingerprint)
+            .upsert_conversation(
+                format!("bench-conv-{idx:04}.jsonl"),
+                &record,
+                &fingerprint,
+                &stats,
+                None,
+            )
             .expect("insert conversation");
 
         for turn_idx in 0..turns_per_conversation {

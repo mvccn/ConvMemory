@@ -11,5 +11,5 @@ pub use pipeline::{
     process_rollout_dir, process_rollout_file, update_rollout_dir, PipelineError, UpdateStats,
 };
 pub use search::{search_with_text, search_with_vector, SearchError, SearchParams, SearchResult};
-pub use storage::{RolloutFingerprint, Storage, StorageError};
+pub use storage::{ConversationStats, RolloutFingerprint, Storage, StorageError};
 pub use types::*;
